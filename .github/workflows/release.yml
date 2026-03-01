@@ -1,0 +1,42 @@
+name: Build and Release Vite App
+
+on:
+  push:
+    tags:
+      - 'v*'   # Runs when you push a tag like v1.0.0
+
+permissions:
+  contents: write  # Required to create releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Zip dist folder
+        run: |
+          cd dist
+          zip -r ../dist.zip .
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
