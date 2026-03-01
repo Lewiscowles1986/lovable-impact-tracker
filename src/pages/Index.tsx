@@ -1,15 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useEntries, ImportResult } from '@/hooks/useEntries';
+import { useViews } from '@/hooks/useViews';
 import { ImpactEntry, RACIRole } from '@/types/entry';
+import { getStatusOptions, getRaciOptions } from '@/lib/filterOptions';
 import { StatsBar } from '@/components/StatsBar';
 import { EntryCard } from '@/components/EntryCard';
 import { EntryForm } from '@/components/EntryForm';
+import { SaveViewDialog } from '@/components/SaveViewDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Zap, Settings, Database, Trash2, Download, Upload, Filter } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Search, Zap, Settings, Database, Trash2, Download, Upload, Filter, Save, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
@@ -18,8 +22,13 @@ import { createSampleEntries } from '@/lib/sampleData';
 import { useToast } from '@/hooks/use-toast';
 import { useRef } from 'react';
 
+const STATUS_OPTIONS = getStatusOptions();
+const RACI_OPTIONS = getRaciOptions();
+
 const Index = () => {
   const { entries, addEntry, updateEntry, deleteEntry, loadSampleData, clearAllEntries, exportEntries, parseImportFile, applyImport } = useEntries();
+  const { views, activeViewId, selectView, updateView, saveNewView, overwriteView, getView, importViews, clearAllViews } = useViews();
+
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ImpactEntry | undefined>();
   const [search, setSearch] = useState('');
@@ -28,8 +37,53 @@ const Index = () => {
   const [raciFilter, setRaciFilter] = useState<RACIRole[]>([]);
   const [raciMode, setRaciMode] = useState<'or' | 'and'>('or');
   const [pendingImport, setPendingImport] = useState<ImportResult | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Apply active view's filters on view change
+  useEffect(() => {
+    const view = getView(activeViewId);
+    if (view) {
+      setSearch(view.search);
+      setStatusFilter(view.filters.status.values);
+      setStatusMode(view.filters.status.mode);
+      setRaciFilter(view.filters.raci.values as RACIRole[]);
+      setRaciMode(view.filters.raci.mode);
+    }
+  }, [activeViewId, getView]);
+
+  // Check if current filters differ from saved view
+  const activeView = getView(activeViewId);
+  const hasChanges = useMemo(() => {
+    if (!activeView) return false;
+    const { filters, search: savedSearch } = activeView;
+    if (search !== savedSearch) return true;
+    if (statusMode !== filters.status.mode) return true;
+    if (raciMode !== filters.raci.mode) return true;
+    if (statusFilter.length !== filters.status.values.length || !statusFilter.every(v => filters.status.values.includes(v))) return true;
+    if (raciFilter.length !== filters.raci.values.length || !raciFilter.every(v => filters.raci.values.includes(v))) return true;
+    return false;
+  }, [activeView, search, statusFilter, statusMode, raciFilter, raciMode]);
+
+  const currentFilters = () => ({
+    status: { values: statusFilter, mode: statusMode },
+    raci: { values: raciFilter, mode: raciMode },
+  });
+
+  const handleUpdateView = () => {
+    updateView(activeViewId, currentFilters(), search);
+    toast({ title: 'View updated' });
+  };
+
+  const handleSaveNew = (name: string) => {
+    return saveNewView(name, currentFilters(), search);
+  };
+
+  const handleOverwrite = (id: string, name: string) => {
+    overwriteView(id, name, currentFilters(), search);
+    toast({ title: 'View overwritten' });
+  };
 
   const handleLoadSample = () => {
     const samples = createSampleEntries();
@@ -43,7 +97,7 @@ const Index = () => {
   };
 
   const handleExport = () => {
-    exportEntries();
+    exportEntries(views);
     toast({ title: 'Backup downloaded' });
   };
 
@@ -56,6 +110,7 @@ const Index = () => {
         setPendingImport(result);
       } else {
         applyImport(result.entries);
+        if (result.views) importViews(result.views);
         toast({ title: 'Backup restored', description: `${result.entries.length} entries loaded.` });
       }
     } catch {
@@ -67,28 +122,16 @@ const Index = () => {
   const handleConfirmCorruptImport = () => {
     if (pendingImport) {
       applyImport(pendingImport.entries);
+      if (pendingImport.views) importViews(pendingImport.views);
       toast({ title: 'Backup restored', description: `${pendingImport.entries.length} entries loaded (checksum warning overridden).` });
       setPendingImport(null);
     }
   };
 
   const handleExportBeforeImport = () => {
-    exportEntries();
+    exportEntries(views);
     toast({ title: 'Current data exported' });
   };
-
-  const STATUS_OPTIONS: { value: string; label: string }[] = [
-    { value: 'planned', label: 'Planned' },
-    { value: 'in-progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-  ];
-
-  const RACI_OPTIONS: { value: RACIRole; label: string }[] = [
-    { value: 'responsible', label: 'Responsible' },
-    { value: 'accountable', label: 'Accountable' },
-    { value: 'consulted', label: 'Consulted' },
-    { value: 'informed', label: 'Informed' },
-  ];
 
   const toggleStatus = (status: string) => {
     setStatusFilter(prev =>
@@ -171,6 +214,9 @@ const Index = () => {
                 <DropdownMenuItem onClick={handleClearAll} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Clear All Entries
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { clearAllViews(); toast({ title: 'All views cleared' }); }} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Clear All Views
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleImport} />
@@ -186,96 +232,137 @@ const Index = () => {
         <StatsBar entries={entries} />
 
         {/* Filters */}
-        <div className="flex gap-3 items-center">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search entries or technologies..."
-              className="pl-9"
-            />
+        <div className="space-y-3">
+          {/* Search + Status/RACI */}
+          <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+            <div className="relative w-full lg:max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search entries or technologies..."
+                className="pl-9"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-center">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Filter className="w-4 h-4" />
+                    Status
+                    {statusFilter.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] leading-4">
+                        {statusFilter.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-2" align="start">
+                  <div className="flex items-center justify-between px-2 py-1 mb-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] font-medium ${statusMode === 'or' ? 'text-foreground' : 'text-muted-foreground'}`}>OR</span>
+                      <Switch checked={statusMode === 'and'} onCheckedChange={v => setStatusMode(v ? 'and' : 'or')} className="scale-75" />
+                      <span className={`text-[11px] font-medium ${statusMode === 'and' ? 'text-foreground' : 'text-muted-foreground'}`}>AND</span>
+                    </div>
+                  </div>
+                  {STATUS_OPTIONS.map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-sm"
+                    >
+                      <Checkbox
+                        checked={statusFilter.includes(value)}
+                        onCheckedChange={() => toggleStatus(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  {statusFilter.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setStatusFilter([])}>
+                      Clear
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Filter className="w-4 h-4" />
+                    RACI
+                    {raciFilter.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] leading-4">
+                        {raciFilter.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-2" align="start">
+                  <div className="flex items-center justify-between px-2 py-1 mb-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] font-medium ${raciMode === 'or' ? 'text-foreground' : 'text-muted-foreground'}`}>OR</span>
+                      <Switch checked={raciMode === 'and'} onCheckedChange={v => setRaciMode(v ? 'and' : 'or')} className="scale-75" />
+                      <span className={`text-[11px] font-medium ${raciMode === 'and' ? 'text-foreground' : 'text-muted-foreground'}`}>AND</span>
+                    </div>
+                  </div>
+                  {RACI_OPTIONS.map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-sm"
+                    >
+                      <Checkbox
+                        checked={raciFilter.includes(value as RACIRole)}
+                        onCheckedChange={() => toggleRaci(value as RACIRole)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  {raciFilter.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setRaciFilter([])}>
+                      Clear
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Filter className="w-4 h-4" />
-                Status
-                {statusFilter.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] leading-4">
-                    {statusFilter.length}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-2" align="start">
-              <div className="flex items-center justify-between px-2 py-1 mb-1">
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] font-medium ${statusMode === 'or' ? 'text-foreground' : 'text-muted-foreground'}`}>OR</span>
-                  <Switch checked={statusMode === 'and'} onCheckedChange={v => setStatusMode(v ? 'and' : 'or')} className="scale-75" />
-                  <span className={`text-[11px] font-medium ${statusMode === 'and' ? 'text-foreground' : 'text-muted-foreground'}`}>AND</span>
-                </div>
-              </div>
-              {STATUS_OPTIONS.map(({ value, label }) => (
-                <label
-                  key={value}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-sm"
-                >
-                  <Checkbox
-                    checked={statusFilter.includes(value)}
-                    onCheckedChange={() => toggleStatus(value)}
-                  />
-                  {label}
-                </label>
-              ))}
-              {statusFilter.length > 0 && (
-                <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setStatusFilter([])}>
-                  Clear
-                </Button>
-              )}
-            </PopoverContent>
-          </Popover>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Filter className="w-4 h-4" />
-                RACI
-                {raciFilter.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] leading-4">
-                    {raciFilter.length}
-                  </Badge>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-2" align="start">
-              <div className="flex items-center justify-between px-2 py-1 mb-1">
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[11px] font-medium ${raciMode === 'or' ? 'text-foreground' : 'text-muted-foreground'}`}>OR</span>
-                  <Switch checked={raciMode === 'and'} onCheckedChange={v => setRaciMode(v ? 'and' : 'or')} className="scale-75" />
-                  <span className={`text-[11px] font-medium ${raciMode === 'and' ? 'text-foreground' : 'text-muted-foreground'}`}>AND</span>
-                </div>
-              </div>
-              {RACI_OPTIONS.map(({ value, label }) => (
-                <label
-                  key={value}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-sm"
-                >
-                  <Checkbox
-                    checked={raciFilter.includes(value)}
-                    onCheckedChange={() => toggleRaci(value)}
-                  />
-                  {label}
-                </label>
-              ))}
-              {raciFilter.length > 0 && (
-                <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setRaciFilter([])}>
-                  Clear
-                </Button>
-              )}
-            </PopoverContent>
-          </Popover>
+
+          {/* Row 2: View selector + Update + Save */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <Select value={activeViewId} onValueChange={selectView}>
+              <SelectTrigger className="w-[160px] h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {views.map(v => (
+                  <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!hasChanges}
+              onClick={handleUpdateView}
+              className="gap-1.5"
+            >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Update
+          </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSaveDialogOpen(true)}
+              className="gap-1.5"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save
+            </Button>
+          </div>
         </div>
 
         {/* Entry List */}
@@ -311,6 +398,14 @@ const Index = () => {
         onClose={handleClose}
         onSave={handleSave}
         initial={editing}
+      />
+
+      {/* Save View Dialog */}
+      <SaveViewDialog
+        open={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={handleSaveNew}
+        onOverwrite={handleOverwrite}
       />
 
       {/* Checksum Mismatch Dialog */}

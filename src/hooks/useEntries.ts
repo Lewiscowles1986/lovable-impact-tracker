@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ImpactEntry } from '@/types/entry';
+import { SavedView } from '@/types/view';
 import { loadEntries, saveEntries, generateId } from '@/lib/entries';
 import { impactEntryArraySchema } from '@/types/entrySchema';
+import { savedViewArraySchema } from '@/types/view';
 import { unwrapData, serializeForExport } from '@/lib/serialization';
 
 export interface ImportResult {
   entries: ImpactEntry[];
+  views?: SavedView[];
   checksumMismatch: boolean;
 }
 
@@ -46,8 +49,8 @@ export function useEntries() {
     persist([]);
   }, [persist]);
 
-  const exportEntries = useCallback(() => {
-    const blob = new Blob([serializeForExport(entries)], { type: 'application/json' });
+  const exportEntries = useCallback((views?: SavedView[]) => {
+    const blob = new Blob([serializeForExport(entries, views)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -63,9 +66,13 @@ export function useEntries() {
       reader.onload = (e) => {
         try {
           const parsed = JSON.parse(e.target?.result as string);
-          const { entries: unwrapped, checksumMismatch } = unwrapData(parsed);
+          const { entries: unwrapped, views: rawViews, checksumMismatch } = unwrapData(parsed);
           const data = impactEntryArraySchema.parse(unwrapped) as ImpactEntry[];
-          resolve({ entries: data, checksumMismatch });
+          let views: SavedView[] | undefined;
+          if (rawViews) {
+            try { views = savedViewArraySchema.parse(rawViews); } catch { /* ignore invalid views */ }
+          }
+          resolve({ entries: data, views, checksumMismatch });
         } catch (err) {
           reject(new Error(err instanceof Error ? err.message : 'Invalid backup file'));
         }

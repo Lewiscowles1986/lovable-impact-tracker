@@ -1,10 +1,12 @@
 import { ImpactEntry } from '@/types/entry';
+import { SavedView } from '@/types/view';
 
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 export interface DataEnvelope {
   version: number;
   entries: ImpactEntry[];
+  views?: SavedView[];
   checksum: string;
 }
 
@@ -51,11 +53,12 @@ export function entryChecksum(entry: ImpactEntry): string {
  * Each entry is checksummed individually, then the full deterministic
  * entries array is checksummed for the outer envelope.
  */
-export function wrapEnvelope(entries: ImpactEntry[]): DataEnvelope {
+export function wrapEnvelope(entries: ImpactEntry[], views?: SavedView[]): DataEnvelope {
   const entriesString = deterministicStringify(entries);
   return {
     version: CURRENT_VERSION,
     entries,
+    ...(views && views.length > 0 ? { views } : {}),
     checksum: fnv1aHash(entriesString),
   };
 }
@@ -69,6 +72,7 @@ export function wrapEnvelope(entries: ImpactEntry[]): DataEnvelope {
  */
 export interface UnwrapResult {
   entries: ImpactEntry[];
+  views?: SavedView[];
   version: number;
   checksumMismatch: boolean;
 }
@@ -87,7 +91,12 @@ export function unwrapData(raw: unknown): UnwrapResult {
       const expected = fnv1aHash(deterministicStringify(envelope.entries));
       checksumMismatch = expected !== envelope.checksum;
     }
-    return { entries: envelope.entries, version: envelope.version, checksumMismatch };
+    return {
+      entries: envelope.entries,
+      views: envelope.views,
+      version: envelope.version,
+      checksumMismatch,
+    };
   }
 
   throw new Error('Unrecognised data format');
@@ -103,8 +112,8 @@ export function serializeForStorage(entries: ImpactEntry[]): string {
 /**
  * Pretty-print envelope for file export (human-readable but still deterministic keys).
  */
-export function serializeForExport(entries: ImpactEntry[]): string {
-  const envelope = wrapEnvelope(entries);
+export function serializeForExport(entries: ImpactEntry[], views?: SavedView[]): string {
+  const envelope = wrapEnvelope(entries, views);
   return JSON.stringify(
     JSON.parse(deterministicStringify(envelope)),
     null,
