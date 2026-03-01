@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SavedView, savedViewArraySchema, createDefaultView } from '@/types/view';
 import { STATUS_VALUES, RACI_VALUES } from '@/lib/filterOptions';
+import { loadSeedData } from '@/lib/seedData';
 
 const STORAGE_KEY = 'impact-tracker-views';
 const ACTIVE_VIEW_KEY = 'impact-tracker-active-view';
@@ -21,10 +22,10 @@ function stripInvalidValues(view: SavedView): SavedView {
   };
 }
 
-function loadViews(): SavedView[] {
+function loadViewsFromStorage(): SavedView[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [createDefaultView()];
+    if (!raw) return null;
     const parsed = savedViewArraySchema.parse(JSON.parse(raw));
     const cleaned = parsed.map(stripInvalidValues);
     if (!cleaned.find(v => v.id === 'default')) {
@@ -32,7 +33,7 @@ function loadViews(): SavedView[] {
     }
     return cleaned;
   } catch {
-    return [createDefaultView()];
+    return null;
   }
 }
 
@@ -40,14 +41,42 @@ function loadActiveViewId(): string {
   return localStorage.getItem(ACTIVE_VIEW_KEY) || 'default';
 }
 
-function persist(views: SavedView[], activeId: string) {
+function persistViews(views: SavedView[], activeId: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
   localStorage.setItem(ACTIVE_VIEW_KEY, activeId);
 }
 
 export function useViews() {
-  const [views, setViews] = useState<SavedView[]>(loadViews);
-  const [activeViewId, setActiveViewId] = useState<string>(loadActiveViewId);
+  const [views, setViews] = useState<SavedView[]>([createDefaultView()]);
+  const [activeViewId, setActiveViewId] = useState<string>('default');
+  const [seeded, setSeeded] = useState(false);
+
+  useEffect(() => {
+    const stored = loadViewsFromStorage();
+    if (stored) {
+      setViews(stored);
+      setActiveViewId(loadActiveViewId());
+      setSeeded(true);
+      return;
+    }
+
+    // localStorage is empty — try seeding from public JSON files
+    loadSeedData().then(seed => {
+      if (seed.views.length > 0) {
+        const cleaned = seed.views.map(stripInvalidValues);
+        if (!cleaned.find(v => v.id === 'default')) {
+          cleaned.unshift(createDefaultView());
+        }
+        persistViews(cleaned, 'default');
+        setViews(cleaned);
+      } else {
+        const defaults = [createDefaultView()];
+        persistViews(defaults, 'default');
+        setViews(defaults);
+      }
+      setSeeded(true);
+    });
+  }, []);
 
   const getView = useCallback((id: string) => views.find(v => v.id === id), [views]);
 
@@ -59,7 +88,7 @@ export function useViews() {
   const updateView = useCallback((id: string, filters: SavedView['filters'], search: string) => {
     setViews(prev => {
       const next = prev.map(v => v.id === id ? { ...v, filters, search } : v);
-      persist(next, id);
+      persistViews(next, id);
       return next;
     });
   }, []);
@@ -76,7 +105,7 @@ export function useViews() {
       filters,
     };
     const next = [...views, newView];
-    persist(next, newView.id);
+    persistViews(next, newView.id);
     setViews(next);
     setActiveViewId(newView.id);
     return { success: true };
@@ -85,7 +114,7 @@ export function useViews() {
   const overwriteView = useCallback((id: string, name: string, filters: SavedView['filters'], search: string) => {
     setViews(prev => {
       const next = prev.map(v => v.id === id ? { ...v, name, filters, search } : v);
-      persist(next, id);
+      persistViews(next, id);
       return next;
     });
     setActiveViewId(id);
@@ -93,21 +122,20 @@ export function useViews() {
 
   const importViews = useCallback((imported: SavedView[]) => {
     const cleaned = imported.map(stripInvalidValues);
-    // Ensure default exists
     if (!cleaned.find(v => v.id === 'default')) {
       cleaned.unshift(createDefaultView());
     }
-    persist(cleaned, 'default');
+    persistViews(cleaned, 'default');
     setViews(cleaned);
     setActiveViewId('default');
   }, []);
 
   const clearAllViews = useCallback(() => {
     const defaults = [createDefaultView()];
-    persist(defaults, 'default');
+    persistViews(defaults, 'default');
     setViews(defaults);
     setActiveViewId('default');
   }, []);
 
-  return { views, activeViewId, selectView, updateView, saveNewView, overwriteView, getView, importViews, clearAllViews };
+  return { views, activeViewId, seeded, selectView, updateView, saveNewView, overwriteView, getView, importViews, clearAllViews };
 }

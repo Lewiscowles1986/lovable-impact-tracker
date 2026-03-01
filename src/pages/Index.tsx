@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useEntries, ImportResult } from '@/hooks/useEntries';
+import { useMetrics } from '@/hooks/useMetrics';
 import { useViews } from '@/hooks/useViews';
 import { ImpactEntry, RACIRole } from '@/types/entry';
 import { getStatusOptions, getRaciOptions } from '@/lib/filterOptions';
@@ -7,16 +8,17 @@ import { StatsBar } from '@/components/StatsBar';
 import { EntryCard } from '@/components/EntryCard';
 import { EntryForm } from '@/components/EntryForm';
 import { SaveViewDialog } from '@/components/SaveViewDialog';
+import { MetricsEditor } from '@/components/MetricsEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Zap, Settings, Database, Trash2, Download, Upload, Filter, Save, RefreshCw } from 'lucide-react';
+import { Plus, Search, Zap, Settings, Database, Trash2, Download, Upload, Filter, Save, RefreshCw, BarChart3 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { AnimatePresence, motion } from 'framer-motion';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { createSampleEntries } from '@/lib/sampleData';
 import { useToast } from '@/hooks/use-toast';
@@ -26,8 +28,9 @@ const STATUS_OPTIONS = getStatusOptions();
 const RACI_OPTIONS = getRaciOptions();
 
 const Index = () => {
-  const { entries, addEntry, updateEntry, deleteEntry, loadSampleData, clearAllEntries, exportEntries, parseImportFile, applyImport } = useEntries();
+  const { entries, addEntry, updateEntry, deleteEntry, loadSampleData, clearAllEntries, exportEntries, exportEntriesOnly, exportViewsOnly, exportMetricsOnly, parseImportFile, applyImport } = useEntries();
   const { views, activeViewId, selectView, updateView, saveNewView, overwriteView, getView, importViews, clearAllViews } = useViews();
+  const { computed: metricsData, configs: metricsConfigs, updateConfigs: updateMetricsConfigs, resetToDefaults: resetMetrics, importMetrics } = useMetrics(entries);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ImpactEntry | undefined>();
@@ -38,6 +41,7 @@ const Index = () => {
   const [raciMode, setRaciMode] = useState<'or' | 'and'>('or');
   const [pendingImport, setPendingImport] = useState<ImportResult | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [metricsEditorOpen, setMetricsEditorOpen] = useState(false);
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -96,9 +100,24 @@ const Index = () => {
     toast({ title: 'All entries cleared' });
   };
 
-  const handleExport = () => {
-    exportEntries(views);
-    toast({ title: 'Backup downloaded' });
+  const handleExportAll = () => {
+    exportEntries(views, metricsConfigs);
+    toast({ title: 'Full backup downloaded' });
+  };
+
+  const handleExportEntries = () => {
+    exportEntriesOnly();
+    toast({ title: 'Entries exported' });
+  };
+
+  const handleExportViews = () => {
+    exportViewsOnly(views);
+    toast({ title: 'Views exported' });
+  };
+
+  const handleExportMetrics = () => {
+    exportMetricsOnly(metricsConfigs);
+    toast({ title: 'Metrics exported' });
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,9 +128,20 @@ const Index = () => {
       if (result.checksumMismatch) {
         setPendingImport(result);
       } else {
-        applyImport(result.entries);
-        if (result.views) importViews(result.views);
-        toast({ title: 'Backup restored', description: `${result.entries.length} entries loaded.` });
+        const parts: string[] = [];
+        if (result.entries.length > 0) {
+          applyImport(result.entries);
+          parts.push(`${result.entries.length} entries`);
+        }
+        if (result.views && result.views.length > 0) {
+          importViews(result.views);
+          parts.push(`${result.views.length} views`);
+        }
+        if (result.metrics && result.metrics.length > 0) {
+          importMetrics(result.metrics);
+          parts.push(`${result.metrics.length} metrics`);
+        }
+        toast({ title: 'Import complete', description: parts.length > 0 ? `Loaded ${parts.join(', ')}.` : 'No data found in file.' });
       }
     } catch {
       toast({ title: 'Import failed', description: 'Invalid backup file.', variant: 'destructive' });
@@ -123,13 +153,14 @@ const Index = () => {
     if (pendingImport) {
       applyImport(pendingImport.entries);
       if (pendingImport.views) importViews(pendingImport.views);
+      if (pendingImport.metrics) importMetrics(pendingImport.metrics);
       toast({ title: 'Backup restored', description: `${pendingImport.entries.length} entries loaded (checksum warning overridden).` });
       setPendingImport(null);
     }
   };
 
   const handleExportBeforeImport = () => {
-    exportEntries(views);
+    exportEntries(views, metricsConfigs);
     toast({ title: 'Current data exported' });
   };
 
@@ -200,13 +231,32 @@ const Index = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExport}>
-                  <Download className="w-4 h-4 mr-2" /> Export Backup
-                </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Download className="w-4 h-4 mr-2" /> Export
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem onClick={handleExportAll}>
+                      Everything
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportEntries}>
+                      Entries Only
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportViews}>
+                      Views Only
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportMetrics}>
+                      Metrics Only
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="w-4 h-4 mr-2" /> Import Backup
+                  <Upload className="w-4 h-4 mr-2" /> Import
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setMetricsEditorOpen(true)}>
+                  <BarChart3 className="w-4 h-4 mr-2" /> Configure Metrics
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLoadSample}>
                   <Database className="w-4 h-4 mr-2" /> Load Sample Data
                 </DropdownMenuItem>
@@ -216,6 +266,9 @@ const Index = () => {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { clearAllViews(); toast({ title: 'All views cleared' }); }} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Clear All Views
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-destructive focus:text-destructive">
+                  <Trash2 className="w-4 h-4 mr-2" /> Clear All State
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -229,7 +282,7 @@ const Index = () => {
 
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
         {/* Stats */}
-        <StatsBar entries={entries} />
+        <StatsBar metrics={metricsData} />
 
         {/* Filters */}
         <div className="space-y-3">
@@ -406,6 +459,15 @@ const Index = () => {
         onClose={() => setSaveDialogOpen(false)}
         onSave={handleSaveNew}
         onOverwrite={handleOverwrite}
+      />
+
+      {/* Metrics Editor */}
+      <MetricsEditor
+        open={metricsEditorOpen}
+        onOpenChange={setMetricsEditorOpen}
+        configs={metricsConfigs}
+        onUpdate={updateMetricsConfigs}
+        onReset={resetMetrics}
       />
 
       {/* Checksum Mismatch Dialog */}

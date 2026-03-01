@@ -61,12 +61,12 @@ describe('fnv1aHash', () => {
 describe('wrapEnvelope / unwrapData', () => {
   it('round-trips entries through envelope', () => {
     const envelope = wrapEnvelope([mockEntry]);
-    expect(envelope.version).toBe(2);
+    expect(envelope.version).toBe(4);
     expect(envelope.entries).toHaveLength(1);
     expect(envelope.checksum).toMatch(/^[0-9a-f]{8}$/);
 
     const { entries, version, checksumMismatch } = unwrapData(envelope);
-    expect(version).toBe(2);
+    expect(version).toBe(4);
     expect(entries).toEqual([mockEntry]);
     expect(checksumMismatch).toBe(false);
   });

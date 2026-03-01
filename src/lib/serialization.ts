@@ -1,12 +1,14 @@
 import { ImpactEntry } from '@/types/entry';
 import { SavedView } from '@/types/view';
+import { MetricConfig } from '@/types/metric';
 
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 
 export interface DataEnvelope {
   version: number;
   entries: ImpactEntry[];
   views?: SavedView[];
+  metrics?: MetricConfig[];
   checksum: string;
 }
 
@@ -53,12 +55,13 @@ export function entryChecksum(entry: ImpactEntry): string {
  * Each entry is checksummed individually, then the full deterministic
  * entries array is checksummed for the outer envelope.
  */
-export function wrapEnvelope(entries: ImpactEntry[], views?: SavedView[]): DataEnvelope {
+export function wrapEnvelope(entries: ImpactEntry[], views?: SavedView[], metrics?: MetricConfig[]): DataEnvelope {
   const entriesString = deterministicStringify(entries);
   return {
     version: CURRENT_VERSION,
     entries,
     ...(views && views.length > 0 ? { views } : {}),
+    ...(metrics && metrics.length > 0 ? { metrics } : {}),
     checksum: fnv1aHash(entriesString),
   };
 }
@@ -73,6 +76,7 @@ export function wrapEnvelope(entries: ImpactEntry[], views?: SavedView[]): DataE
 export interface UnwrapResult {
   entries: ImpactEntry[];
   views?: SavedView[];
+  metrics?: MetricConfig[];
   version: number;
   checksumMismatch: boolean;
 }
@@ -94,6 +98,7 @@ export function unwrapData(raw: unknown): UnwrapResult {
     return {
       entries: envelope.entries,
       views: envelope.views,
+      metrics: envelope.metrics,
       version: envelope.version,
       checksumMismatch,
     };
@@ -112,11 +117,32 @@ export function serializeForStorage(entries: ImpactEntry[]): string {
 /**
  * Pretty-print envelope for file export (human-readable but still deterministic keys).
  */
-export function serializeForExport(entries: ImpactEntry[], views?: SavedView[]): string {
-  const envelope = wrapEnvelope(entries, views);
+export function serializeForExport(entries: ImpactEntry[], views?: SavedView[], metrics?: MetricConfig[]): string {
+  const envelope = wrapEnvelope(entries, views, metrics);
   return JSON.stringify(
     JSON.parse(deterministicStringify(envelope)),
     null,
     2
   );
+}
+
+/**
+ * Export views only as a standalone JSON array.
+ */
+export function serializeViewsForExport(views: SavedView[]): string {
+  return JSON.stringify(views, null, 2);
+}
+
+/**
+ * Export metrics only as a standalone JSON array.
+ */
+export function serializeMetricsForExport(metrics: MetricConfig[]): string {
+  return JSON.stringify(metrics, null, 2);
+}
+
+/**
+ * Export entries only (no views) as an envelope.
+ */
+export function serializeEntriesForExport(entries: ImpactEntry[]): string {
+  return serializeForExport(entries);
 }
