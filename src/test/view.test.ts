@@ -13,6 +13,8 @@ describe('view types', () => {
       expect(view.filters.status.mode).toBe('or');
       expect(view.filters.raci.values).toEqual([]);
       expect(view.filters.raci.mode).toBe('or');
+      expect(view.filters.impact.values).toEqual([]);
+      expect(view.filters.impact.mode).toBe('or');
     });
   });
 
@@ -25,6 +27,7 @@ describe('view types', () => {
         filters: {
           status: { values: ['planned'], mode: 'or' },
           raci: { values: ['responsible'], mode: 'and' },
+          impact: { values: ['high'], mode: 'or' },
         },
       };
       expect(savedViewSchema.parse(view)).toEqual(view);

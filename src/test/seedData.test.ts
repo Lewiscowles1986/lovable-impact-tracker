@@ -18,6 +18,7 @@ const validView = {
   filters: {
     status: { values: ['planned'], mode: 'or' },
     raci: { values: [], mode: 'or' },
+    impact: { values: [], mode: 'or' },
   },
 };
 

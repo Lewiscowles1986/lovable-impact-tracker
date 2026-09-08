@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createDefaultView, SavedView, savedViewArraySchema } from '@/types/view';
-import { STATUS_VALUES, RACI_VALUES } from '@/lib/filterOptions';
+import { STATUS_VALUES, RACI_VALUES, IMPACT_VALUES } from '@/lib/filterOptions';
 
 /**
  * These tests validate the core views logic (load, save, update, clear, import)
@@ -20,6 +20,10 @@ function stripInvalidValues(view: SavedView): SavedView {
       raci: {
         ...view.filters.raci,
         values: view.filters.raci.values.filter(v => (RACI_VALUES as readonly string[]).includes(v)),
+      },
+      impact: {
+        ...view.filters.impact,
+        values: view.filters.impact.values.filter(v => (IMPACT_VALUES as readonly string[]).includes(v)),
       },
     },
   };
@@ -85,6 +89,7 @@ function importViews(imported: SavedView[]): SavedView[] {
 const emptyFilters = (): SavedView['filters'] => ({
   status: { values: [], mode: 'or' },
   raci: { values: [], mode: 'or' },
+  impact: { values: [], mode: 'or' },
 });
 
 // --- Tests ---
@@ -100,7 +105,7 @@ describe('views logic', () => {
     it('loads views from storage', () => {
       const custom: SavedView = {
         id: 'custom', name: 'Custom', search: 'test',
-        filters: { status: { values: ['planned'], mode: 'or' }, raci: { values: [], mode: 'or' } },
+        filters: { status: { values: ['planned'], mode: 'or' }, raci: { values: [], mode: 'or' }, impact: { values: [], mode: 'or' } },
       };
       const store = { 'impact-tracker-views': JSON.stringify([createDefaultView(), custom]) };
       const views = loadViews(store);
@@ -114,11 +119,13 @@ describe('views logic', () => {
         filters: {
           status: { values: ['planned', 'nonexistent'], mode: 'or' },
           raci: { values: ['responsible', 'fake-role'], mode: 'or' },
+          impact: { values: ['high', 'astronomical'], mode: 'or' },
         },
       };
       const views = loadViews({ 'impact-tracker-views': JSON.stringify([bad]) });
       expect(views[0].filters.status.values).toEqual(['planned']);
       expect(views[0].filters.raci.values).toEqual(['responsible']);
+      expect(views[0].filters.impact.values).toEqual(['high']);
     });
 
     it('adds default view if missing from storage', () => {
@@ -144,6 +151,7 @@ describe('views logic', () => {
       const newFilters: SavedView['filters'] = {
         status: { values: ['completed'], mode: 'and' },
         raci: { values: ['accountable'], mode: 'or' },
+        impact: { values: ['critical'], mode: 'and' },
       };
       const updated = updateView(views, 'default', newFilters, 'search term');
       expect(updated[0].filters).toEqual(newFilters);
@@ -195,6 +203,7 @@ describe('views logic', () => {
       ];
       const newFilters: SavedView['filters'] = {
         status: { values: ['completed'], mode: 'and' },
+        impact: { values: [], mode: 'or' },
         raci: { values: [], mode: 'or' },
       };
       const updated = overwriteView(views, 'v1', 'New Name', newFilters, 'new search');
@@ -221,12 +230,14 @@ describe('views logic', () => {
           filters: {
             status: { values: ['planned', 'bogus'], mode: 'or' },
             raci: { values: ['informed'], mode: 'and' },
+            impact: { values: ['high', 'bogus'], mode: 'or' },
           },
         },
       ];
       const views = importViews(imported);
       expect(views).toHaveLength(2);
       expect(views[1].filters.status.values).toEqual(['planned']);
+      expect(views[1].filters.impact.values).toEqual(['high']);
     });
 
     it('ensures default exists if missing from import', () => {

@@ -3,6 +3,7 @@ import { raciRoleSchema, impactEntrySchema } from '@/types/entrySchema';
 // Derive canonical values from Zod schemas — single source of truth
 export const RACI_VALUES = raciRoleSchema.options;
 export const STATUS_VALUES = impactEntrySchema.shape.status._def.values as readonly string[];
+export const IMPACT_VALUES = impactEntrySchema.shape.impactLevel._def.values as readonly string[];
 
 /** Capitalizes and replaces hyphens: 'in-progress' → 'In Progress' */
 export function formatLabel(value: string): string {
@@ -18,4 +19,8 @@ export function getStatusOptions(): { value: string; label: string }[] {
 
 export function getRaciOptions(): { value: string; label: string }[] {
   return RACI_VALUES.map(v => ({ value: v, label: formatLabel(v) }));
+}
+
+export function getImpactOptions(): { value: string; label: string }[] {
+  return IMPACT_VALUES.map(v => ({ value: v, label: formatLabel(v) }));
 }

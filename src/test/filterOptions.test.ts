@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatLabel, getStatusOptions, getRaciOptions, STATUS_VALUES, RACI_VALUES } from '@/lib/filterOptions';
+import { formatLabel, getStatusOptions, getRaciOptions, getImpactOptions, STATUS_VALUES, RACI_VALUES, IMPACT_VALUES } from '@/lib/filterOptions';
 
 describe('filterOptions', () => {
   describe('STATUS_VALUES', () => {
@@ -18,6 +18,16 @@ describe('filterOptions', () => {
       expect(RACI_VALUES).toContain('consulted');
       expect(RACI_VALUES).toContain('informed');
       expect(RACI_VALUES.length).toBe(4);
+    });
+  });
+
+  describe('IMPACT_VALUES', () => {
+    it('derives values from Zod schema', () => {
+      expect(IMPACT_VALUES).toContain('low');
+      expect(IMPACT_VALUES).toContain('medium');
+      expect(IMPACT_VALUES).toContain('high');
+      expect(IMPACT_VALUES).toContain('critical');
+      expect(IMPACT_VALUES.length).toBe(4);
     });
   });
 
@@ -40,6 +50,15 @@ describe('filterOptions', () => {
       const options = getStatusOptions();
       expect(options.length).toBe(3);
       expect(options).toContainEqual({ value: 'in-progress', label: 'In Progress' });
+    });
+  });
+
+  describe('getImpactOptions', () => {
+    it('returns option objects with value and label', () => {
+      const options = getImpactOptions();
+      expect(options.length).toBe(4);
+      expect(options).toContainEqual({ value: 'critical', label: 'Critical' });
+      expect(options).toContainEqual({ value: 'high', label: 'High' });
     });
   });
 
