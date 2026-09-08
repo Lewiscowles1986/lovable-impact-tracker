@@ -4,6 +4,7 @@ import { useMetrics } from '@/hooks/useMetrics';
 import { useViews } from '@/hooks/useViews';
 import { ImpactEntry, RACIRole } from '@/types/entry';
 import { getStatusOptions, getRaciOptions } from '@/lib/filterOptions';
+import { clearAppStorage } from '@/lib/storageNamespace';
 import { StatsBar } from '@/components/StatsBar';
 import { EntryCard } from '@/components/EntryCard';
 import { EntryForm } from '@/components/EntryForm';
@@ -267,7 +268,7 @@ const Index = () => {
                 <DropdownMenuItem onClick={() => { clearAllViews(); toast({ title: 'All views cleared' }); }} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Clear All Views
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { localStorage.clear(); window.location.reload(); }} className="text-destructive focus:text-destructive">
+                <DropdownMenuItem onClick={() => { clearAppStorage(); window.location.reload(); }} className="text-destructive focus:text-destructive">
                   <Trash2 className="w-4 h-4 mr-2" /> Clear All State
                 </DropdownMenuItem>
               </DropdownMenuContent>

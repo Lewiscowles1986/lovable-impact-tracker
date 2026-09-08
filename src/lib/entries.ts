@@ -1,7 +1,8 @@
 import { ImpactEntry } from '@/types/entry';
 import { unwrapData, serializeForStorage } from '@/lib/serialization';
+import { scopedKey } from '@/lib/storageNamespace';
 
-const STORAGE_KEY = 'impact-tracker-entries';
+const STORAGE_KEY = scopedKey('impact-tracker-entries');
 
 export function loadEntries(): ImpactEntry[] {
   try {

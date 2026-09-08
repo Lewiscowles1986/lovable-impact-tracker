@@ -3,8 +3,9 @@ import { ImpactEntry } from '@/types/entry';
 import { MetricConfig, ComputedMetric } from '@/types/metric';
 import { computeAllMetrics, runCustomMetricInWorker } from '@/lib/metricsEngine';
 import { loadSeedData } from '@/lib/seedData';
+import { scopedKey } from '@/lib/storageNamespace';
 
-const LS_KEY = 'impact-tracker-metrics';
+const LS_KEY = scopedKey('impact-tracker-metrics');
 
 function loadOverrides(): MetricConfig[] | null {
   try {

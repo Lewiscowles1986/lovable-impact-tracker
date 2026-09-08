@@ -7,8 +7,9 @@ import { impactEntryArraySchema } from '@/types/entrySchema';
 import { savedViewArraySchema } from '@/types/view';
 import { unwrapData, serializeForExport, serializeEntriesForExport, serializeViewsForExport, serializeMetricsForExport } from '@/lib/serialization';
 import { loadSeedData } from '@/lib/seedData';
+import { scopedKey } from '@/lib/storageNamespace';
 
-const ENTRIES_STORAGE_KEY = 'impact-tracker-entries';
+const ENTRIES_STORAGE_KEY = scopedKey('impact-tracker-entries');
 
 export interface ImportResult {
   entries: ImpactEntry[];

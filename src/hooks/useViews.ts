@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { SavedView, savedViewArraySchema, createDefaultView } from '@/types/view';
 import { STATUS_VALUES, RACI_VALUES } from '@/lib/filterOptions';
 import { loadSeedData } from '@/lib/seedData';
+import { scopedKey } from '@/lib/storageNamespace';
 
-const STORAGE_KEY = 'impact-tracker-views';
-const ACTIVE_VIEW_KEY = 'impact-tracker-active-view';
+const STORAGE_KEY = scopedKey('impact-tracker-views');
+const ACTIVE_VIEW_KEY = scopedKey('impact-tracker-active-view');
 
 function stripInvalidValues(view: SavedView): SavedView {
   return {

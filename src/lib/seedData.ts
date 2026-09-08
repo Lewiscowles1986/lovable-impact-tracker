@@ -55,7 +55,10 @@ function parseViews(raw: unknown): SavedView[] {
 let seedPromise: Promise<SeedData> | null = null;
 
 async function doLoadSeedData(): Promise<SeedData> {
-  const config = await fetchJson('/config.json') as ConfigJson | null;
+  // Seed files are copied to the build root, so they must be fetched relative
+  // to the Vite base (e.g. /impact-tracker/ on Pages, or the preview subfolder).
+  const base = import.meta.env.BASE_URL;
+  const config = await fetchJson(`${base}config.json`) as ConfigJson | null;
 
   let entries: ImpactEntry[] = [];
   let views: SavedView[] = [];
@@ -69,17 +72,17 @@ async function doLoadSeedData(): Promise<SeedData> {
 
   // Fallback to individual files for keys not in config
   if (entries.length === 0) {
-    const tasksRaw = await fetchJson('/tasks.json');
+    const tasksRaw = await fetchJson(`${base}tasks.json`);
     entries = parseEntries(tasksRaw);
   }
 
   if (views.length === 0) {
-    const filtersRaw = await fetchJson('/filters.json');
+    const filtersRaw = await fetchJson(`${base}filters.json`);
     views = parseViews(filtersRaw);
   }
 
   if (metrics.length === 0) {
-    const metricsRaw = await fetchJson('/metrics.json');
+    const metricsRaw = await fetchJson(`${base}metrics.json`);
     if (metricsRaw && typeof metricsRaw === 'object' && 'metrics' in (metricsRaw as Record<string, unknown>)) {
       metrics = ((metricsRaw as Record<string, unknown>).metrics ?? []) as MetricConfig[];
     }
