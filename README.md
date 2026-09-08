@@ -1,6 +1,6 @@
 # Impact tracker
 
-Initially vibe-coded through lovable.dev. This is designed to enable software engineers to track their impact within organisations. It's a grounded brag doc.
+This is designed to enable software engineers to track their impact within organisations. It's a grounded brag doc.
 
 ![System screenshot of impact tracker](./docs/system-screenshot.png)
 
