@@ -1,0 +1,43 @@
+{
+  "metrics": [
+    {
+      "id": "total-entries",
+      "label": "Total Entries",
+      "type": "count",
+      "icon": "Target",
+      "color": "text-primary",
+      "order": 0,
+      "enabled": true
+    },
+    {
+      "id": "in-progress",
+      "label": "In Progress",
+      "type": "filter-count",
+      "icon": "Clock",
+      "color": "text-info",
+      "filter": { "field": "status", "operator": "eq", "value": "in-progress" },
+      "order": 1,
+      "enabled": true
+    },
+    {
+      "id": "completed",
+      "label": "Completed",
+      "type": "filter-count",
+      "icon": "TrendingUp",
+      "color": "text-success",
+      "filter": { "field": "status", "operator": "eq", "value": "completed" },
+      "order": 2,
+      "enabled": true
+    },
+    {
+      "id": "high-impact",
+      "label": "High Impact",
+      "type": "filter-count",
+      "icon": "Zap",
+      "color": "text-primary",
+      "filter": { "field": "impactLevel", "operator": "in", "value": ["high", "critical"] },
+      "order": 3,
+      "enabled": true
+    }
+  ]
+}
