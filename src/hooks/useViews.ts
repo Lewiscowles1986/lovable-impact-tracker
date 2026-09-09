@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { SavedView, savedViewArraySchema, createDefaultView } from '@/types/view';
-import { STATUS_VALUES, RACI_VALUES } from '@/lib/filterOptions';
+import { STATUS_VALUES, RACI_VALUES, IMPACT_VALUES } from '@/lib/filterOptions';
 import { loadSeedData } from '@/lib/seedData';
 import { scopedKey } from '@/lib/storageNamespace';
 
@@ -18,6 +18,10 @@ function stripInvalidValues(view: SavedView): SavedView {
       raci: {
         ...view.filters.raci,
         values: view.filters.raci.values.filter(v => RACI_VALUES.includes(v as any)),
+      },
+      impact: {
+        ...view.filters.impact,
+        values: view.filters.impact.values.filter(v => IMPACT_VALUES.includes(v as any)),
       },
     },
   };

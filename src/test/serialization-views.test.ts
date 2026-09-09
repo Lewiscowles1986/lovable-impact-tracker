@@ -85,6 +85,7 @@ describe('serialization with views', () => {
           filters: {
             status: { values: ['planned'], mode: 'and' },
             raci: { values: ['accountable'], mode: 'or' },
+            impact: { values: ['high'], mode: 'or' },
           },
         },
       ];
@@ -117,7 +118,7 @@ describe('serialization with views', () => {
     it('produces a bare array of views', () => {
       const views: SavedView[] = [
         createDefaultView(),
-        { id: 'v1', name: 'V1', search: '', filters: { status: { values: ['planned'], mode: 'or' }, raci: { values: [], mode: 'or' } } },
+        { id: 'v1', name: 'V1', search: '', filters: { status: { values: ['planned'], mode: 'or' }, raci: { values: [], mode: 'or' }, impact: { values: [], mode: 'or' } } },
       ];
       const json = serializeViewsForExport(views);
       const parsed = JSON.parse(json);

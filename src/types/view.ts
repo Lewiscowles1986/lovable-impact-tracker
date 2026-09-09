@@ -12,6 +12,7 @@ export const savedViewSchema = z.object({
   filters: z.object({
     status: filterGroupSchema,
     raci: filterGroupSchema,
+    impact: filterGroupSchema,
   }),
 });
 
@@ -27,6 +28,7 @@ export function createDefaultView(): SavedView {
     filters: {
       status: { values: [], mode: 'or' },
       raci: { values: [], mode: 'or' },
+      impact: { values: [], mode: 'or' },
     },
   };
 }

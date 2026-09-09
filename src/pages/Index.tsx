@@ -3,7 +3,7 @@ import { useEntries, ImportResult } from '@/hooks/useEntries';
 import { useMetrics } from '@/hooks/useMetrics';
 import { useViews } from '@/hooks/useViews';
 import { ImpactEntry, RACIRole } from '@/types/entry';
-import { getStatusOptions, getRaciOptions } from '@/lib/filterOptions';
+import { getStatusOptions, getRaciOptions, getImpactOptions } from '@/lib/filterOptions';
 import { clearAppStorage } from '@/lib/storageNamespace';
 import { StatsBar } from '@/components/StatsBar';
 import { EntryCard } from '@/components/EntryCard';
@@ -27,6 +27,7 @@ import { useRef } from 'react';
 
 const STATUS_OPTIONS = getStatusOptions();
 const RACI_OPTIONS = getRaciOptions();
+const IMPACT_OPTIONS = getImpactOptions();
 
 const Index = () => {
   const { entries, addEntry, updateEntry, deleteEntry, loadSampleData, clearAllEntries, exportEntries, exportEntriesOnly, exportViewsOnly, exportMetricsOnly, parseImportFile, applyImport } = useEntries();
@@ -40,6 +41,8 @@ const Index = () => {
   const [statusMode, setStatusMode] = useState<'or' | 'and'>('or');
   const [raciFilter, setRaciFilter] = useState<RACIRole[]>([]);
   const [raciMode, setRaciMode] = useState<'or' | 'and'>('or');
+  const [impactFilter, setImpactFilter] = useState<string[]>([]);
+  const [impactMode, setImpactMode] = useState<'or' | 'and'>('or');
   const [pendingImport, setPendingImport] = useState<ImportResult | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [metricsEditorOpen, setMetricsEditorOpen] = useState(false);
@@ -55,6 +58,8 @@ const Index = () => {
       setStatusMode(view.filters.status.mode);
       setRaciFilter(view.filters.raci.values as RACIRole[]);
       setRaciMode(view.filters.raci.mode);
+      setImpactFilter(view.filters.impact.values);
+      setImpactMode(view.filters.impact.mode);
     }
   }, [activeViewId, getView]);
 
@@ -66,14 +71,17 @@ const Index = () => {
     if (search !== savedSearch) return true;
     if (statusMode !== filters.status.mode) return true;
     if (raciMode !== filters.raci.mode) return true;
+    if (impactMode !== filters.impact.mode) return true;
     if (statusFilter.length !== filters.status.values.length || !statusFilter.every(v => filters.status.values.includes(v))) return true;
     if (raciFilter.length !== filters.raci.values.length || !raciFilter.every(v => filters.raci.values.includes(v))) return true;
+    if (impactFilter.length !== filters.impact.values.length || !impactFilter.every(v => filters.impact.values.includes(v))) return true;
     return false;
-  }, [activeView, search, statusFilter, statusMode, raciFilter, raciMode]);
+  }, [activeView, search, statusFilter, statusMode, raciFilter, raciMode, impactFilter, impactMode]);
 
   const currentFilters = () => ({
     status: { values: statusFilter, mode: statusMode },
     raci: { values: raciFilter, mode: raciMode },
+    impact: { values: impactFilter, mode: impactMode },
   });
 
   const handleUpdateView = () => {
@@ -177,6 +185,12 @@ const Index = () => {
     );
   };
 
+  const toggleImpact = (level: string) => {
+    setImpactFilter(prev =>
+      prev.includes(level) ? prev.filter(l => l !== level) : [...prev, level]
+    );
+  };
+
   const filtered = entries.filter(e => {
     const matchesSearch = !search || e.title.toLowerCase().includes(search.toLowerCase()) ||
       e.technologies.some(t => t.toLowerCase().includes(search.toLowerCase()));
@@ -188,7 +202,11 @@ const Index = () => {
       (raciMode === 'or'
         ? raciFilter.some(r => e.raci.includes(r))
         : raciFilter.every(r => e.raci.includes(r)));
-    return matchesSearch && matchesStatus && matchesRaci;
+    const matchesImpact = impactFilter.length === 0 ||
+      (impactMode === 'or'
+        ? impactFilter.some(l => e.impactLevel === l)
+        : impactFilter.every(l => e.impactLevel === l));
+    return matchesSearch && matchesStatus && matchesRaci && matchesImpact;
   });
 
   const handleEdit = (entry: ImpactEntry) => {
@@ -375,6 +393,46 @@ const Index = () => {
                   ))}
                   {raciFilter.length > 0 && (
                     <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setRaciFilter([])}>
+                      Clear
+                    </Button>
+                  )}
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Filter className="w-4 h-4" />
+                    Impact
+                    {impactFilter.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px] leading-4">
+                        {impactFilter.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-52 p-2" align="start">
+                  <div className="flex items-center justify-between px-2 py-1 mb-1">
+                    <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Mode</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[11px] font-medium ${impactMode === 'or' ? 'text-foreground' : 'text-muted-foreground'}`}>OR</span>
+                      <Switch checked={impactMode === 'and'} onCheckedChange={v => setImpactMode(v ? 'and' : 'or')} className="scale-75" />
+                      <span className={`text-[11px] font-medium ${impactMode === 'and' ? 'text-foreground' : 'text-muted-foreground'}`}>AND</span>
+                    </div>
+                  </div>
+                  {IMPACT_OPTIONS.map(({ value, label }) => (
+                    <label
+                      key={value}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-accent text-sm"
+                    >
+                      <Checkbox
+                        checked={impactFilter.includes(value)}
+                        onCheckedChange={() => toggleImpact(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                  {impactFilter.length > 0 && (
+                    <Button variant="ghost" size="sm" className="w-full mt-1 text-xs" onClick={() => setImpactFilter([])}>
                       Clear
                     </Button>
                   )}
